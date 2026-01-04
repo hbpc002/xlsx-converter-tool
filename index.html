@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XLSX 自动转换工具</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 60px 20px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            background: #eef0ff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone-text {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .drop-zone-hint {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-block;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .result-area {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .result-area.show {
+            display: block;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            color: #155724;
+        }
+
+        .error-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            color: #721c24;
+        }
+
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+
+        .mapping-table th,
+        .mapping-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .mapping-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        .mapping-table tr:nth-child(even) {
+            background: #f8f9ff;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .preview-table {
+            width: 100%;
+            max-height: 400px;
+            overflow: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+
+        .preview-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .preview-table th,
+        .preview-table td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            white-space: nowrap;
+            text-align: left;
+        }
+
+        .preview-table th {
+            background: #f8f9ff;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .footer {
+            background: #f8f9ff;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .mapping-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .mapping-info h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .mapping-info ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .mapping-info li {
+            padding: 5px 0;
+            border-bottom: 1px dashed #ffc107;
+            font-size: 13px;
+        }
+
+        .mapping-info li:last-child {
+            border-bottom: none;
+        }
+
+        .mapping-info strong {
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📥 XLSX 自动转换工具</h1>
+            <p>将原始表格转换为工号导入模板格式</p>
+        </div>
+
+        <div class="content">
+            <!-- 拖拽上传区域 -->
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📄</div>
+                <div class="drop-zone-text">拖拽 XLSX 文件到此处，或点击选择文件</div>
+                <div class="drop-zone-hint">支持 .xlsx 和 .xls 格式</div>
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+            </div>
+
+            <!-- 加载状态 -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>正在处理文件...</div>
+            </div>
+
+            <!-- 结果区域 -->
+            <div class="result-area" id="resultArea">
+                <div id="messageBox"></div>
+
+                <div class="stats" id="stats" style="display: none;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="originalCount">0</div>
+                        <div class="stat-label">原始记录数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="convertedCount">0</div>
+                        <div class="stat-label">转换后记录数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="fieldCount">0</div>
+                        <div class="stat-label">字段数</div>
+                    </div>
+                </div>
+
+                <div class="preview-table" id="previewTable" style="display: none;"></div>
+
+                <div class="action-buttons" id="actionButtons" style="display: none;">
+                    <button class="btn" onclick="downloadConverted()">📥 下载转换后的文件</button>
+                    <button class="btn btn-secondary" onclick="resetPage()">🔄 重新选择</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 字段映射说明（移到页面底部） -->
+        <div class="mapping-info" style="margin: 20px;">
+            <h3>📋 字段映射说明</h3>
+            <ul>
+                <li><strong>所属组织</strong> → 所属部门全路径</li>
+                <li><strong>用户帐号</strong> → 用户帐号（新建时不需填写）</li>
+                <li><strong>用户姓名</strong> → 用户姓名</li>
+                <li><strong>证件类型/号码</strong> → 证件类型/号码</li>
+                <li><strong>手机</strong> → 手机</li>
+                <li><strong>用户类型</strong> → 用户类型</li>
+                <li><strong>岗位性质</strong> → 岗位性质</li>
+                <li><strong>专业部门</strong> → 专业部门</li>
+                <li><strong>责任人信息</strong> → 责任人姓名/电话/邮箱/身份证</li>
+                <li><strong>申请角色权限</strong> → 所属角色</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>Powered by SheetJS | 本地处理，文件不会上传到服务器</p>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量存储转换后的数据
+        let convertedData = null;
+        let originalData = null;
+
+        // 字段映射配置
+        const fieldMapping = {
+            // 输入字段 -> 输出字段
+            '所属组织(必填)': '所属部门全路径(必填)',
+            '用户帐号(新建不需填写)': '用户帐号(必填)',
+            '用户姓名(必填)': '用户姓名(必填)',
+            '证件类型(18位身份证以外需填写)': '证件类型(必填)',
+            '证件号码(必填)': '证件号码(必填)',
+            '手机(必填)': '手机(必填)',
+            '用户类型(联通人员、外包人员、自有、商业紧派遣)': '用户类型(必填)',
+            '岗位性质(客服、市场、渠道、营业厅人员、业务支撑人员、业务处理人员)': '岗位性质(必填)',
+            '专业部门(客服、市场、渠道、网络数字化、信安、政企)': '专业部门(必填)',
+            // 备用映射（处理可能的字段名差异）
+            '专业部门': '专业部门(必填)',
+            '专业部门(必填)': '专业部门(必填)',
+            // 处理字段名中包含换行符的情况
+            '专业部门(客服、市场、渠道、网络\n数字化、信安、政企)': '专业部门(必填)',
+            '申请角色权限': '所属角色',
+            '责任人姓名（必需是自有人员）': '责任人姓名',
+            '责任人身份证': '责任人身份证',
+            '责任人电话': '责任人电话',
+            '责任人邮箱（必需是中国联通@chinaunicom.cn）': '责任人邮箱'
+        };
+
+        // 输出模板的所有字段
+        const outputFields = [
+            '所属部门全路径(必填)',
+            '用户帐号(必填)',
+            '用户姓名(必填)',
+            '性别',
+            '所属角色',
+            '出生日期',
+            '证件类型(必填)',
+            '证件号码(必填)',
+            '手机(必填)',
+            '联系人',
+            '联系电话',
+            '联系地址',
+            '邮政编码',
+            '内部员工号',
+            '用户类型(必填)',
+            '密码有效期',
+            '教育水平',
+            '入职时间',
+            '邮箱( 格式要求：email)',
+            '用户昵称',
+            '签名',
+            '地市区域',
+            '呼叫中心编码',
+            '民族',
+            '专业线',
+            '级别',
+            '最大接待人数',
+            '受理地市',
+            '受理渠道',
+            '外包公司名称',
+            '是否离职',
+            '离职时间',
+            '岗位性质(必填)',
+            '随身学账号',
+            '所属区域(必填)',
+            '专业部门(必填)',
+            '责任人ID',
+            '责任人姓名',
+            '责任人电话',
+            '责任人邮箱',
+            '责任人身份证'
+        ];
+
+        // DOM 元素
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const loading = document.getElementById('loading');
+        const resultArea = document.getElementById('resultArea');
+        const messageBox = document.getElementById('messageBox');
+        const stats = document.getElementById('stats');
+        const previewTable = document.getElementById('previewTable');
+        const actionButtons = document.getElementById('actionButtons');
+
+        // 拖拽事件
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        // 文件选择事件
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // 处理文件
+        function handleFile(file) {
+            // 验证文件类型
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                showMessage('❌ 请上传 XLSX 或 XLS 格式的文件', 'error');
+                return;
+            }
+
+            // 显示加载状态
+            loading.classList.add('show');
+            resultArea.classList.remove('show');
+
+            // 使用 FileReader 读取文件
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    processExcelData(e.target.result);
+                } catch (error) {
+                    showMessage('❌ 处理文件时出错: ' + error.message, 'error');
+                    loading.classList.remove('show');
+                }
+            };
+            reader.onerror = function() {
+                showMessage('❌ 读取文件失败', 'error');
+                loading.classList.remove('show');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 处理 Excel 数据
+        function processExcelData(buffer) {
+            // 读取工作簿
+            const workbook = XLSX.read(buffer, { type: 'array' });
+
+            // 获取第一个工作表
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+
+            // 转换为 JSON（跳过第一列标题行）
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            if (jsonData.length < 2) {
+                throw new Error('文件中没有足够的数据');
+            }
+
+            // 提取表头（第二行，因为第一行是标题）
+            const headers = jsonData[1];
+
+            // 提取数据（从第三行开始）
+            const rows = jsonData.slice(2);
+
+            // 验证表头
+            if (!headers || headers.length < 2) {
+                throw new Error('无法识别表头，请检查文件格式');
+            }
+
+            // 保存原始数据
+            originalData = { headers, rows };
+
+            // 转换数据
+            const converted = convertData(headers, rows);
+
+            // 保存转换后的数据
+            convertedData = converted;
+
+            // 显示结果
+            displayResults(converted);
+
+            // 隐藏加载状态
+            loading.classList.remove('show');
+        }
+
+        // 转换数据
+        function convertData(headers, rows) {
+            // 创建映射：原始字段名 -> 输出字段名
+            const headerMap = {};
+            const foundMappings = [];
+
+            headers.forEach((header, index) => {
+                if (header && fieldMapping[header]) {
+                    headerMap[index] = fieldMapping[header];
+                    foundMappings.push(`${header} → ${fieldMapping[header]}`);
+                }
+            });
+
+            // 转换每一行数据
+            const convertedRows = rows.map((row, rowIndex) => {
+                const newRow = {};
+
+                // 初始化所有输出字段为空字符串
+                outputFields.forEach(field => {
+                    newRow[field] = '';
+                });
+
+                // 根据映射填充数据
+                Object.keys(headerMap).forEach(originalIndex => {
+                    const outputField = headerMap[originalIndex];
+                    const value = row[originalIndex];
+
+                    if (value !== undefined && value !== null) {
+                        newRow[outputField] = String(value).trim();
+                    }
+                });
+
+                // ========== 功能1: 证件类型固定值为18位身份证 ==========
+                newRow['证件类型(必填)'] = '18位身份证';
+
+                // ========== 功能2: 责任人信息自动补全（双向补全） ==========
+                // 只有当责任人姓名与用户姓名相同时，才进行双向补全
+                
+                if (newRow['责任人姓名'] && 
+                    newRow['用户姓名(必填)'] && 
+                    newRow['责任人姓名'] === newRow['用户姓名(必填)']) {
+                    
+                    // 场景1：用用户信息补全责任人信息
+                    // 如果责任人身份证为空，用用户的证件号码补全
+                    if ((!newRow['责任人身份证'] || newRow['责任人身份证'].trim() === '') && 
+                        newRow['证件号码(必填)']) {
+                        newRow['责任人身份证'] = newRow['证件号码(必填)'];
+                    }
+                    
+                    // 如果责任人电话为空，用用户的手机号码补全
+                    if ((!newRow['责任人电话'] || newRow['责任人电话'].trim() === '') && 
+                        newRow['手机(必填)']) {
+                        newRow['责任人电话'] = newRow['手机(必填)'];
+                    }
+                    
+                    // 场景2：用责任人信息补全用户信息
+                    // 如果用户证件号码为空，用责任人身份证补全
+                    if ((!newRow['证件号码(必填)'] || newRow['证件号码(必填)'].trim() === '') && 
+                        newRow['责任人身份证']) {
+                        newRow['证件号码(必填)'] = newRow['责任人身份证'];
+                    }
+                    
+                    // 如果用户手机为空，用责任人电话补全
+                    if ((!newRow['手机(必填)'] || newRow['手机(必填)'].trim() === '') && 
+                        newRow['责任人电话']) {
+                        newRow['手机(必填)'] = newRow['责任人电话'];
+                    }
+                }
+
+                // ========== 功能3: 岗位性质特殊处理（优先） ==========
+                const jobNature = newRow['岗位性质(必填)'];
+                const deptPath = newRow['所属部门全路径(必填)'];
+                
+                // 特殊处理：当所属部门全路径包含"10010热线客服代表"时，优先处理
+                if (deptPath && deptPath.includes('10010热线客服代表')) {
+                    newRow['岗位性质(必填)'] = '其他>>一线坐席-10010';
+                    newRow['级别'] = '省员工级';
+                }
+                // 普通处理：岗位性质添加"广西省>>"前缀
+                else if (jobNature && jobNature.trim() !== '') {
+                    // 检查是否已经包含"广西省>>"前缀
+                    if (!jobNature.startsWith('广西省>>')) {
+                        newRow['岗位性质(必填)'] = '广西省>>' + jobNature.trim();
+                    }
+                }
+
+                // ========== 功能4: 用户类型转换 ==========
+                const userType = newRow['用户类型(必填)'];
+                if (userType) {
+                    // 如果是"外包人员"，转换为"紧密"
+                    if (userType.trim() === '外包人员') {
+                        newRow['用户类型(必填)'] = '紧密';
+                    }
+                    // 如果是"合同制"，转换为"联通人员"
+                    else if (userType.trim() === '合同制') {
+                        newRow['用户类型(必填)'] = '联通人员';
+                    }
+                }
+
+                // ========== 功能5: 是否离职统一填入"否" ==========
+                newRow['是否离职'] = '否';
+
+                return newRow;
+            });
+
+            return {
+                rows: convertedRows,
+                mappings: foundMappings
+            };
+        }
+
+        // 显示结果
+        function displayResults(converted) {
+            // 显示消息
+            const successMsg = `
+                <div class="success-box">
+                    ✅ 转换成功！共处理 ${converted.rows.length} 条记录<br>
+                    发现 ${converted.mappings.length} 个字段映射
+                </div>
+            `;
+            messageBox.innerHTML = successMsg;
+
+            // 显示统计
+            document.getElementById('originalCount').textContent = originalData.rows.length;
+            document.getElementById('convertedCount').textContent = converted.rows.length;
+            document.getElementById('fieldCount').textContent = outputFields.length;
+            stats.style.display = 'grid';
+
+            // 显示预览表格
+            displayPreviewTable(converted.rows);
+
+            // 显示操作按钮
+            actionButtons.style.display = 'flex';
+
+            // 显示结果区域
+            resultArea.classList.add('show');
+        }
+
+        // 显示预览表格
+        function displayPreviewTable(rows) {
+            // 只显示前 10 行作为预览
+            const previewRows = rows.slice(0, 10);
+
+            let html = '<table><thead><tr>';
+
+            // 表头
+            outputFields.forEach(field => {
+                html += `<th>${field}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            // 数据行
+            previewRows.forEach(row => {
+                html += '<tr>';
+                outputFields.forEach(field => {
+                    const value = row[field] || '';
+                    html += `<td>${value}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+
+            if (rows.length > 10) {
+                html += `<div style="padding: 10px; text-align: center; color: #666; font-size: 12px;">
+                    以上是前 10 条记录预览，共 ${rows.length} 条记录
+                </div>`;
+            }
+
+            previewTable.innerHTML = html;
+            previewTable.style.display = 'block';
+        }
+
+        // 下载转换后的文件
+        function downloadConverted() {
+            if (!convertedData || !convertedData.rows) {
+                showMessage('❌ 没有可下载的数据', 'error');
+                return;
+            }
+
+            try {
+                // 创建新的工作簿
+                const workbook = XLSX.utils.book_new();
+
+                // 将转换后的数据转换为工作表
+                const worksheet = XLSX.utils.json_to_sheet(convertedData.rows, {
+                    header: outputFields
+                });
+
+                // 添加到工作簿
+                XLSX.utils.book_append_sheet(workbook, worksheet, '工号导入');
+
+                // 生成文件名（在原文件名基础上添加后缀）
+                const originalFileName = fileInput.files[0]?.name || 'converted';
+                const fileName = originalFileName.replace(/\.[^/.]+$/, '') + '_导入模板.xlsx';
+
+                // 下载文件
+                XLSX.writeFile(workbook, fileName);
+
+                showMessage('✅ 文件下载成功！', 'success');
+            } catch (error) {
+                showMessage('❌ 下载失败: ' + error.message, 'error');
+            }
+        }
+
+        // 显示消息
+        function showMessage(text, type) {
+            const className = type === 'error' ? 'error-box' : 'success-box';
+            messageBox.innerHTML = `<div class="${className}">${text}</div>`;
+            resultArea.classList.add('show');
+        }
+
+        // 重置页面
+        function resetPage() {
+            fileInput.value = '';
+            convertedData = null;
+            originalData = null;
+            resultArea.classList.remove('show');
+            stats.style.display = 'none';
+            previewTable.style.display = 'none';
+            actionButtons.style.display = 'none';
+            messageBox.innerHTML = '';
+        }
+    </script>
+</body>
+</html>
