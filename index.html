@@ -491,12 +491,16 @@
         });
 
         // 处理文件
+        let currentFileName = '';
         function handleFile(file) {
             // 验证文件类型
             if (!file.name.match(/\.(xlsx|xls)$/i)) {
                 showMessage('❌ 请上传 XLSX 或 XLS 格式的文件', 'error');
                 return;
             }
+
+            // 保存文件名（用于提取编号）
+            currentFileName = file.name;
 
             // 显示加载状态
             loading.classList.add('show');
@@ -549,8 +553,8 @@
             // 保存原始数据
             originalData = { headers, rows };
 
-            // 转换数据
-            const converted = convertData(headers, rows);
+            // 转换数据（传入文件名）
+            const converted = convertData(headers, rows, currentFileName);
 
             // 保存转换后的数据
             convertedData = converted;
@@ -563,7 +567,7 @@
         }
 
         // 转换数据
-        function convertData(headers, rows) {
+        function convertData(headers, rows, fileName) {
             // 创建映射：原始字段名 -> 输出字段名
             const headerMap = {};
             const foundMappings = [];
@@ -663,6 +667,21 @@
 
                 // ========== 功能5: 是否离职统一填入"否" ==========
                 newRow['是否离职'] = '否';
+
+                // ========== 功能6: 从文件名中提取编号填入签名 ==========
+                if (fileName) {
+                    // 移除扩展名
+                    const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+                    // 查找最后一个"-"后面的内容
+                    const dashIndex = nameWithoutExt.lastIndexOf('-');
+                    if (dashIndex !== -1 && dashIndex < nameWithoutExt.length - 1) {
+                        const extractedNumber = nameWithoutExt.substring(dashIndex + 1).trim();
+                        // 如果提取的内容不为空，则填入签名
+                        if (extractedNumber && extractedNumber.length > 0) {
+                            newRow['签名'] = extractedNumber;
+                        }
+                    }
+                }
 
                 return newRow;
             });
